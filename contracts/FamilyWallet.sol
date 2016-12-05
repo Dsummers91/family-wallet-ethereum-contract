@@ -6,7 +6,6 @@ contract FamilyWallet {
   address _wallet = this; 
   Adult[] _listOfAdults;
   Child[] _listOfChildren;
-  uint _allowance;
   uint _allowancePeriodStart;
   uint _allowancePeriodEnd;
   uint _defaultAllowance;
@@ -42,7 +41,6 @@ contract FamilyWallet {
   modifier isAdult() {
     for (uint i = 0; i < _listOfAdults.length; i++) {
       if (msg.sender == _listOfAdults[i].addr) {
-        uint index =  i;
         _;
       }
     }
@@ -53,7 +51,6 @@ contract FamilyWallet {
   modifier isChild() {
     for (uint i = 0; i < _listOfChildren.length; i++) {
       if (msg.sender == _listOfChildren[i].addr) {
-        uint index =  i;
         _;
       }
     }
@@ -140,21 +137,21 @@ contract FamilyWallet {
   // Utility functions
   function getChildByAddress(address addr) internal returns (Child memory child) {
     for (uint i = 0; i < _listOfChildren.length; i++) {
-      child = _listOfChildren[i];
+      if(_listOfChildren[i].addr == addr) return _listOfChildren[i];
     }
-    return child;
+    throw;
   }
     function getAdultByAddress(address addr) internal returns (Adult memory adult) {
     for (uint i = 0; i < _listOfAdults.length; i++) {
-      adult = _listOfAdults[i];
+      return _listOfAdults[i];
     }
-    return adult;
+    throw;
   }
-  
+
   // TESTING FUNCTIONS
   // NOT NECESSARY FOR DEPLOYMENTS
-  function getChild() returns (address)  {
-    return _listOfChildren[0].addr;
+  function getChild(address addr) returns (address)  {
+    return getChildByAddress(addr).addr;
   }
 
   function getAllowanceAmount(address addr) returns(uint) {
