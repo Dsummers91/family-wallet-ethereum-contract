@@ -3,13 +3,9 @@ pragma solidity ^0.4.4;
 contract FamilyWallet {
   // TYPES
 
-  // Still Debating using mappings/array - or both for adult/children. 
-  // Right now using both.
   address _wallet = this; 
-  mapping (address => Adult) _adults;
-  mapping (address => Child) _children;
   Adult[] _listOfAdults;
-  Child[] public _listOfChildren;
+  Child[] _listOfChildren;
   uint _allowance;
   uint _allowancePeriodStart;
   uint _allowancePeriodEnd;
@@ -45,7 +41,10 @@ contract FamilyWallet {
   // Confirmation that message sender is an adult
   modifier isAdult() {
     for (uint i = 0; i < _listOfAdults.length; i++) {
-      if (msg.sender == _listOfAdults[i].addr) _;
+      if (msg.sender == _listOfAdults[i].addr) {
+        uint index =  i;
+        _;
+      }
     }
   }
 
@@ -53,7 +52,10 @@ contract FamilyWallet {
   // Confirmation that message sender is a child
   modifier isChild() {
     for (uint i = 0; i < _listOfChildren.length; i++) {
-      if (msg.sender == _listOfChildren[i].addr) _;
+      if (msg.sender == _listOfChildren[i].addr) {
+        uint index =  i;
+        _;
+      }
     }
   }
 
@@ -63,7 +65,7 @@ contract FamilyWallet {
   modifier refundable() {
     for (uint i = 0; i < _listOfAdults.length; i++) {
         address adultAddress = _listOfAdults[i].addr;
-        if(!_adults[adultAddress].approveRefund) throw;
+        if(!getAdultByAddress(adultAddress).approveRefund) throw;
      }
      _;
   }
@@ -83,7 +85,6 @@ contract FamilyWallet {
       Adult memory adult;
       adult.addr = adults[j];
       _listOfAdults.push(adult);
-      _adults[adult.addr] = adult;
     }
     // Loop through children array and include address in mapping and array
     for (uint i = 0; i < children.length; i++) {
@@ -92,7 +93,6 @@ contract FamilyWallet {
       child.allowance = _defaultAllowance;
       if(firstAllowancePayment) child.allowanceDue = _defaultAllowance;
       _listOfChildren.push(child);
-      _children[child.addr] = child;
     }
 
     // Set Durations
@@ -109,14 +109,14 @@ contract FamilyWallet {
     _allowancePeriodStart = _allowancePeriodEnd;
     _allowancePeriodEnd = _allowancePeriodEnd + _duration;
     for (uint i = 0; i < _listOfChildren.length; i++) {
-      _children[_listOfChildren[i].addr].allowanceDue +=  _children[ _listOfChildren[i].addr].allowance;
+     _listOfChildren[i].allowanceDue +=  _listOfChildren[i].allowance;
     }
     NewAllowancePeriod(_allowancePeriodStart, _allowancePeriodEnd);
     return true;
   }
 
   function getAllowance() isChild {
-    Child memory child = _children[msg.sender];
+    Child memory child = getChildByAddress(msg.sender);
     if(child.allowanceDue == 0) throw;
     if(child.addr.send(child.allowanceDue)) throw;
     child.allowanceDue = 0;
@@ -133,10 +133,24 @@ contract FamilyWallet {
   // TODO:  Amount refunded should be same weighted average as amount deposited
   //        Rather that first person takes all.
   function refundBalance(address addr) isAdult refundable {
-     if(_adults[msg.sender].addr.send(_wallet.balance)) throw;
+     if(getAdultByAddress(msg.sender).addr.send(_wallet.balance)) throw;
   }
   
 
+  // Utility functions
+  function getChildByAddress(address addr) internal returns (Child memory child) {
+    for (uint i = 0; i < _listOfChildren.length; i++) {
+      child = _listOfChildren[i];
+    }
+    return child;
+  }
+    function getAdultByAddress(address addr) internal returns (Adult memory adult) {
+    for (uint i = 0; i < _listOfAdults.length; i++) {
+      adult = _listOfAdults[i];
+    }
+    return adult;
+  }
+  
   // TESTING FUNCTIONS
   // NOT NECESSARY FOR DEPLOYMENTS
   function getChild() returns (address)  {
@@ -144,20 +158,20 @@ contract FamilyWallet {
   }
 
   function getAllowanceAmount(address addr) returns(uint) {
-    return _children[addr].allowanceDue;
+    return getChildByAddress(addr).allowanceDue;
   }
 
   function getChildsAmount(address addr) returns(uint) {
-    return _children[addr].allowance;
+    return getChildByAddress(addr).allowance;
   }
 
   function getDefaultAllowance(string addr) returns(uint) {
     return _defaultAllowance;
   }
   
-  // Fallback method, send event once mony is paid
+  // Fallback method, send event once money is paid
   function() payable {
-    _adults[msg.sender].balanceOf += msg.value;
+    getAdultByAddress(msg.sender).balanceOf += msg.value;
     MoneyReceived(msg.value, msg.sender);
   }
 // TODO:    Allow Removal of Childen/Adult
