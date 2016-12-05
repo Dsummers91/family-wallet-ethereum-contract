@@ -22,7 +22,7 @@ contract FamilyWallet {
   struct Child {
     uint allowance;
     address addr;
-    bool allowanceReceived;
+    uint allowanceDue;
     //bool tasksCompleted (will be added when  _requireTasksForAllowance is added)
   }
 
@@ -102,15 +102,16 @@ contract FamilyWallet {
     _allowancePeriodStart = _allowancePeriodEnd;
     _allowancePeriodEnd = _allowancePeriodEnd + _duration;
     for (uint i = 0; i < _listOfChildren.length; i++) {
-      _listOfChildren[i].allowanceReceived = false;
+      _listOfChildren[i].allowanceDue +=  _listOfChildren[i].allowance;
     }
   }
 
   function getAllowance() isChild {
     Child memory child = _children[msg.sender];
-    if(child.allowanceReceived == false) {
-      if(child.addr.send(child.allowance)) throw;
-    }
+    if(child.allowanceDue == 0) throw;
+    if(child.addr.send(child.allowanceDue)) throw;
+    child.allowanceDue = 0;
+    AllowancePaid(child.allowanceDue, msg.sender);
   }
   function approveRefund() isAdult {
     for (uint i = 0; i < _listOfAdults.length; i++) {
