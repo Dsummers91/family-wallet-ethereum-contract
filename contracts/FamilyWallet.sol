@@ -9,10 +9,11 @@ contract FamilyWallet {
   mapping (address => Adult) _adults;
   mapping (address => Child) _children;
   Adult[] _listOfAdults;
-  Child[] _listOfChildren;
+  Child[] public _listOfChildren;
   uint _allowance;
   uint _allowancePeriodStart;
   uint _allowancePeriodEnd;
+  uint _defaultAllowance;
   uint _duration;
 
   // TODO: Add _requireTasksForAllowance
@@ -35,6 +36,7 @@ contract FamilyWallet {
   // EVENTS
   event MoneyReceived(uint payment, address sender);
   event AllowancePaid(uint allowance, address receiver);
+  event NewAllowancePeriod(uint start, uint end);
 
 
   // MODIFIERS
@@ -71,9 +73,12 @@ contract FamilyWallet {
   function FamilyWallet(
     address[] adults,
     address[] children,
-    uint durationInDays
+    uint defaultAllowanceInEther,
+    uint durationInDays,
+    bool firstAllowancePayment // Set true if include first payment when contract created
   ) {
     // Loop through adult array and include address in mapping and array
+    _defaultAllowance = defaultAllowanceInEther * 1 ether;
     for (uint j = 0; j < adults.length; j++) {
       Adult memory adult;
       adult.addr = adults[j];
@@ -84,6 +89,8 @@ contract FamilyWallet {
     for (uint i = 0; i < children.length; i++) {
       Child memory child;
       child.addr = children[i];
+      child.allowance = _defaultAllowance;
+      if(firstAllowancePayment) child.allowanceDue = _defaultAllowance;
       _listOfChildren.push(child);
       _children[child.addr] = child;
     }
@@ -97,13 +104,15 @@ contract FamilyWallet {
 
   // Make payment on allowance start,or when user calls getAllowance?
   // Right now child must call get allowance to receive alowance
-  function nextAllowancePeriod() {
-    if(now < _allowancePeriodEnd) throw;
+  function nextAllowancePeriod(bool force) returns (bool) {
+    if((now < _allowancePeriodEnd) && (!force)) throw;
     _allowancePeriodStart = _allowancePeriodEnd;
     _allowancePeriodEnd = _allowancePeriodEnd + _duration;
     for (uint i = 0; i < _listOfChildren.length; i++) {
-      _listOfChildren[i].allowanceDue +=  _listOfChildren[i].allowance;
+      _children[_listOfChildren[i].addr].allowanceDue +=  _children[ _listOfChildren[i].addr].allowance;
     }
+    NewAllowancePeriod(_allowancePeriodStart, _allowancePeriodEnd);
+    return true;
   }
 
   function getAllowance() isChild {
@@ -113,6 +122,7 @@ contract FamilyWallet {
     child.allowanceDue = 0;
     AllowancePaid(child.allowanceDue, msg.sender);
   }
+
   function approveRefund() isAdult {
     for (uint i = 0; i < _listOfAdults.length; i++) {
         if(msg.sender == _listOfAdults[i].addr) _listOfAdults[i].approveRefund = true;
@@ -126,11 +136,25 @@ contract FamilyWallet {
      if(_adults[msg.sender].addr.send(_wallet.balance)) throw;
   }
   
+
+  // TESTING FUNCTIONS
+  // NOT NECESSARY FOR DEPLOYMENTS
   function getChild() returns (address)  {
     return _listOfChildren[0].addr;
   }
 
+  function getAllowanceAmount(address addr) returns(uint) {
+    return _children[addr].allowanceDue;
+  }
 
+  function getChildsAmount(address addr) returns(uint) {
+    return _children[addr].allowance;
+  }
+
+  function getDefaultAllowance(string addr) returns(uint) {
+    return _defaultAllowance;
+  }
+  
   // Fallback method, send event once mony is paid
   function() payable {
     _adults[msg.sender].balanceOf += msg.value;
